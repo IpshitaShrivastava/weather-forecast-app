@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather Forecast</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh;
+           background: linear-gradient(135deg, #4facfe, #00f2fe);
+           display: flex; justify-content: center; padding: 30px 15px; }
+    .card { background: #fff; width: 100%; max-width: 520px; border-radius: 16px;
+            padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.2); height: fit-content; }
+    h1 { margin-top: 0; text-align: center; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; min-width: 150px; }
+    button { padding: 10px 14px; border: none; border-radius: 8px; background: #4facfe;
+             color: #fff; cursor: pointer; }
+    button:hover { background: #2d8cf0; }
+    .current { text-align: center; }
+    .temp { font-size: 3rem; font-weight: bold; }
+    .details { display: flex; justify-content: space-around; margin: 12px 0; color: #555; }
+    .forecast { display: flex; gap: 8px; overflow-x: auto; }
+    .day { flex: 1; min-width: 80px; background: #f2f7ff; border-radius: 10px;
+           padding: 8px; text-align: center; font-size: .85rem; }
+    .error { color: #c0392b; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Weather Forecast</h1>
+    <div class="controls">
+      <input id="city" placeholder="Enter city name">
+      <button onclick="searchCity()">Search</button>
+      <button onclick="useMyLocation()">My Location</button>
+      <button id="unitBtn" onclick="toggleUnit()">Switch to °F</button>
+    </div>
+    <div id="result"></div>
+  </div>
+
+<script>
+  let units = "metric";
+  let lastQuery = "";
+
+  const symbol = () => (units === "metric" ? "°C" : "°F");
+  const speedUnit = () => (units === "metric" ? "m/s" : "mph");
+
+  function searchCity() {
+    const city = document.getElementById("city").value.trim();
+    if (!city) return;
+    lastQuery = `city=${encodeURIComponent(city)}`;
+    load();
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      show('<p class="error">Geolocation is not supported by your browser.</p>');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        lastQuery = `lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`;
+        load();
+      },
+      () => show('<p class="error">Location access denied. Search by city instead.</p>')
+    );
+  }
+
+  function toggleUnit() {
+    units = units === "metric" ? "imperial" : "metric";
+    document.getElementById("unitBtn").textContent =
+      units === "metric" ? "Switch to °F" : "Switch to °C";
+    if (lastQuery) load();
+  }
+
+  async function load() {
+    show("<p>Loading...</p>");
+    try {
+      const res = await fetch(`/api/weather?${lastQuery}&units=${units}`);
+      const data = await res.json();
+      if (!res.ok) { show(`<p class="error">${data.error}</p>`); return; }
+      render(data);
+    } catch {
+      show('<p class="error">Something went wrong. Try again.</p>');
+    }
+  }
+
+  function render({ current: c, daily }) {
+    const days = daily.map(d => `
+      <div class="day">
+        <div>${new Date(d.date).toLocaleDateString("en", { weekday: "short" })}</div>
+        <img src="https://openweathermap.org/img/wn/${d.icon}.png" alt="">
+        <div><b>${d.temp}${symbol()}</b></div>
+        <div>${d.description}</div>
+      </div>`).join("");
+
+    show(`
+      <div class="current">
+        <h2>${c.city}, ${c.country}</h2>
+        <img src="https://openweathermap.org/img/wn/${c.icon}@2x.png" alt="">
+        <div class="temp">${c.temp}${symbol()}</div>
+        <div>${c.description}</div>
+        <div class="details">
+          <span>Feels like ${c.feels_like}${symbol()}</span>
+          <span>Humidity ${c.humidity}%</span>
+          <span>Wind ${c.wind} ${speedUnit()}</span>
+        </div>
+      </div>
+      <h3>5-Day Forecast</h3>
+      <div class="forecast">${days}</div>`);
+  }
+
+  function show(html) { document.getElementById("result").innerHTML = html; }
+
+  document.getElementById("city").addEventListener("keydown", e => {
+    if (e.key === "Enter") searchCity();
+  });
+</script>
+</body>
+</html>
